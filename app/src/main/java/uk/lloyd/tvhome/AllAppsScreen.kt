@@ -41,11 +41,11 @@ fun AllAppsScreen(apps: List<TvApp>, onOpen: (TvApp) -> Unit) {
     }
 
     Column(
-        Modifier.fillMaxSize().background(Palette.Cream).padding(horizontal = 44.dp, vertical = 30.dp),
+        Modifier.fillMaxSize().background(Palette.Bg).padding(horizontal = 44.dp, vertical = 30.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Txt("All apps", 34.sp, Palette.Chocolate, family = AppFonts.serif)
-        Txt("Press Back to return home", 10.sp, Palette.Muted)
+        Txt("All apps", 34.sp, Palette.Ink, family = AppFonts.serif)
+        Txt("Press Back to return home", 11.sp, Palette.Muted)
         LazyVerticalGrid(
             columns = GridCells.Fixed(5),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -56,7 +56,7 @@ fun AllAppsScreen(apps: List<TvApp>, onOpen: (TvApp) -> Unit) {
             itemsIndexed(apps, key = { _, app -> app.packageName }) { index, app ->
                 TvButton(
                     shape = RoundedCornerShape(10.dp),
-                    background = if (index % 2 == 0) Palette.Forest else Palette.Chocolate,
+                    background = if (index % 2 == 0) Palette.TileGreen else Palette.TileBrown,
                     onClick = { onOpen(app) },
                     modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
                     focusRequester = if (index == 0) first else null,
@@ -81,7 +81,7 @@ fun AllAppsScreen(apps: List<TvApp>, onOpen: (TvApp) -> Unit) {
                                 Spacer(Modifier.height(4.dp))
                             }
                             Txt(
-                                app.label, 10.sp, Palette.OnDark,
+                                app.label, 11.sp, Palette.OnTile,
                                 weight = FontWeight.SemiBold, align = TextAlign.Center, maxLines = 2,
                             )
                         }

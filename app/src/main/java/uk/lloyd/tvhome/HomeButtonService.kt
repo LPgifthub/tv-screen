@@ -14,6 +14,7 @@ import android.view.accessibility.AccessibilityEvent
  * It never reads what is on screen.
  *
  * Short press Home = TV Home. Long press Home = the system side panel (Google Home panel).
+ * Once TV Home is the default home app, this service steps aside and Android handles Home itself.
  */
 class HomeButtonService : AccessibilityService() {
 
@@ -46,6 +47,8 @@ class HomeButtonService : AccessibilityService() {
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode != KeyEvent.KEYCODE_HOME) return false
+        // Already the default home app: let Android handle Home normally, long-press included.
+        if (isDefaultHome(this)) return false
         if (event.action == KeyEvent.ACTION_UP) {
             Prefs.markHomeKey(this)
             val held = event.eventTime - event.downTime

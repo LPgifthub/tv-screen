@@ -52,6 +52,7 @@ private val Rounded9 = RoundedCornerShape(9.dp)
 fun HomeScreen(
     apps: List<TvApp>,
     weather: Weather?,
+    football: FootballView,
     updateReady: Boolean,
     onOpenApp: (name: String, app: TvApp?) -> Unit,
     onAllApps: () -> Unit,
@@ -65,10 +66,10 @@ fun HomeScreen(
         runCatching { firstTile.requestFocus() }
     }
 
-    Box(Modifier.fillMaxSize().background(Palette.Cream)) {
+    Box(Modifier.fillMaxSize().background(Palette.Bg)) {
         Column(
-            Modifier.fillMaxSize().padding(start = 44.dp, end = 44.dp, top = 34.dp, bottom = 26.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+            Modifier.fillMaxSize().padding(start = 44.dp, end = 44.dp, top = 26.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             Header(weather)
 
@@ -78,7 +79,7 @@ fun HomeScreen(
             ) {
                 Column(
                     Modifier.weight(1f).fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(9.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     // Label and the two small buttons share one line, leaving room for the cards below.
                     Row(
@@ -90,15 +91,16 @@ fun HomeScreen(
                         PillButton("All apps", onAllApps)
                         PillButton(if (updateReady) "Setup · update ready" else "Setup", onSetup)
                     }
+
                     val favourites = Apps.favourites(apps)
                     favourites.chunked(3).forEachIndexed { rowIndex, row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(15.dp)) {
                             row.forEachIndexed { colIndex, (name, app) ->
-                                val dark = (rowIndex * 3 + colIndex) % 2 == 1
+                                val brown = (rowIndex * 3 + colIndex) % 2 == 1
                                 AppTile(
                                     name = name,
                                     app = app,
-                                    background = if (dark) Palette.Chocolate else Palette.Forest,
+                                    background = if (brown) Palette.TileBrown else Palette.TileGreen,
                                     modifier = Modifier.weight(1f).aspectRatio(16f / 9f),
                                     focusRequester = if (rowIndex == 0 && colIndex == 0) firstTile else null,
                                     onClick = { onOpenApp(name, app) },
@@ -106,21 +108,21 @@ fun HomeScreen(
                             }
                         }
                     }
+
                     Row(
                         Modifier.fillMaxWidth().weight(1f).padding(top = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(15.dp),
                     ) {
-                        InfoCard("Today", Modifier.weight(1f).fillMaxHeight()) {
+                        InfoCard("Today", Modifier.weight(0.85f).fillMaxHeight()) {
                             Txt(
                                 "Your calendar appears here once it's connected (Stage 4).",
-                                11.sp, Palette.Muted,
+                                11.5.sp, Palette.Muted,
                             )
                         }
-                        InfoCard("Next up", Modifier.weight(1f).fillMaxHeight()) {
-                            TeamRow("NC", "Norwich City", Palette.Forest, Palette.OnDark)
-                            TeamRow("NF", "Nottingham Forest", Palette.Chocolate, Palette.OnDark)
-                            TeamRow("EN", "England", Palette.Forest, Palette.OnDark)
-                            TeamRow("PL", "Premier League", Palette.Brass, Color(0xFF2A1C14))
+                        InfoCard("Next up", Modifier.weight(1.25f).fillMaxHeight()) {
+                            football.lines.forEachIndexed { i, line ->
+                                TeamRow(line, badgeIndex = i)
+                            }
                         }
                     }
                 }
@@ -153,47 +155,47 @@ private fun Header(weather: Weather?) {
     }
 
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Txt(date, 10.sp, Palette.Muted, weight = FontWeight.SemiBold, spacing = 2.2.sp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Txt(date, 11.sp, Palette.Muted, weight = FontWeight.SemiBold, spacing = 2.2.sp)
             RichTxt(
                 buildAnnotatedString {
                     append("Good ")
-                    withStyle(SpanStyle(fontStyle = FontStyle.Italic, color = Palette.Forest)) { append(part) }
+                    withStyle(SpanStyle(fontStyle = FontStyle.Italic, color = Palette.Accent)) { append(part) }
                 },
-                TextStyle(fontFamily = AppFonts.serif, fontSize = 40.sp, color = Palette.Chocolate),
+                TextStyle(fontFamily = AppFonts.serif, fontSize = 36.sp, color = Palette.Ink),
             )
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(26.dp)) {
             Row(
                 Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(Palette.CreamLight)
+                    .background(Palette.Card)
                     .border(1.dp, Palette.Border, RoundedCornerShape(50))
-                    .padding(start = 10.dp, end = 13.dp, top = 8.dp, bottom = 8.dp),
+                    .padding(start = 11.dp, end = 15.dp, top = 7.dp, bottom = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
-                LineIcon(weather?.icon ?: IconKind.Cloud, Palette.Forest, 22.dp)
+                LineIcon(weather?.icon ?: IconKind.Cloud, Palette.Accent, 24.dp)
                 Column {
-                    Txt(weather?.let { "${it.tempC}°" } ?: "–°", 15.sp, Palette.Chocolate, weight = FontWeight.SemiBold)
-                    Txt("Horsford · ${weather?.summary ?: "updating"}", 8.5.sp, Palette.Muted)
+                    Txt(weather?.let { "${it.tempC}°" } ?: "–°", 16.sp, Palette.Ink, weight = FontWeight.SemiBold)
+                    Txt("Horsford · ${weather?.summary ?: "updating"}", 10.sp, Palette.Muted)
                     val detail = weather?.let { w ->
                         listOfNotNull(
                             if (w.highC != null && w.lowC != null) "${w.highC}° / ${w.lowC}°" else null,
                             w.rainChance?.let { "$it% rain" },
                         ).joinToString(" · ")
                     }
-                    if (!detail.isNullOrEmpty()) Txt(detail, 8.5.sp, Palette.Muted)
+                    if (!detail.isNullOrEmpty()) Txt(detail, 10.sp, Palette.Muted)
                 }
             }
-            Txt(time, 54.sp, Palette.Forest, family = AppFonts.serif)
+            Txt(time, 50.sp, Palette.Accent, family = AppFonts.serif)
         }
     }
 }
 
 @Composable
 private fun SectionLabel(text: String) {
-    Txt(text, 9.sp, Palette.Muted, weight = FontWeight.SemiBold, spacing = 2.sp)
+    Txt(text, 10.sp, Palette.Muted, weight = FontWeight.SemiBold, spacing = 2.sp)
 }
 
 @Composable
@@ -226,8 +228,8 @@ private fun AppTile(
                     Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(36.dp))
                     Spacer(Modifier.height(6.dp))
                 }
-                Txt(name, 17.sp, Palette.OnDark, weight = FontWeight.Bold)
-                if (app == null) Txt("Not installed", 8.sp, Palette.OnDarkMuted)
+                Txt(name, 17.sp, Palette.OnTile, weight = FontWeight.Bold)
+                if (app == null) Txt("Not installed – press OK to get it", 9.5.sp, Palette.OnTileMuted)
             }
         }
     }
@@ -237,13 +239,13 @@ private fun AppTile(
 private fun PillButton(label: String, onClick: () -> Unit) {
     TvButton(
         shape = RoundedCornerShape(50),
-        background = Palette.CreamLight,
+        background = Palette.ButtonFill,
         idleBorder = Palette.ButtonBorder,
         onClick = onClick,
-        modifier = Modifier.height(30.dp),
+        modifier = Modifier.height(32.dp),
         focusedScale = 1.06f,
     ) {
-        Txt(label, 10.sp, Palette.Chocolate, Modifier.padding(horizontal = 16.dp), weight = FontWeight.SemiBold)
+        Txt(label, 11.sp, Palette.Ink, Modifier.padding(horizontal = 16.dp), weight = FontWeight.SemiBold)
     }
 }
 
@@ -252,28 +254,49 @@ private fun InfoCard(title: String, modifier: Modifier, content: @Composable () 
     Column(
         modifier
             .clip(Rounded12)
-            .background(Palette.CreamLight)
+            .background(Palette.Card)
             .border(1.dp, Palette.Border, Rounded12)
-            .padding(horizontal = 15.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
+            .padding(horizontal = 15.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Txt(title, 18.sp, Palette.Chocolate, family = AppFonts.serif)
+        Txt(title, 17.sp, Palette.Ink, family = AppFonts.serif)
         Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.Divider))
         content()
     }
 }
 
 @Composable
-private fun TeamRow(initials: String, name: String, badge: Color, badgeText: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(
-            Modifier.size(18.dp).clip(CircleShape).background(badge),
-            contentAlignment = Alignment.Center,
-        ) {
-            Txt(initials, 6.5.sp, badgeText, weight = FontWeight.Bold)
+private fun TeamRow(line: TeamLine, badgeIndex: Int) {
+    val badge = when (badgeIndex) {
+        3 -> Palette.Brass
+        1 -> Palette.TileBrown
+        else -> Palette.TileGreen
+    }
+    val badgeText = if (badgeIndex == 3) Color(0xFF2A1C14) else Palette.OnTile
+    Row(
+        Modifier.fillMaxWidth().height(21.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(Modifier.size(20.dp).clip(CircleShape).background(badge), contentAlignment = Alignment.Center) {
+            Txt(line.initials, 7.sp, badgeText, weight = FontWeight.Bold)
         }
-        Txt(name, 10.sp, Palette.Chocolate, Modifier.weight(1f), weight = FontWeight.SemiBold, maxLines = 1)
-        Txt("Stage 4", 9.sp, Palette.Muted)
+        Txt(line.label, 11.5.sp, Palette.Ink, Modifier.weight(0.75f), weight = FontWeight.SemiBold, maxLines = 1)
+        Row(
+            Modifier.weight(1.6f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.End),
+        ) {
+            if (line.live) {
+                Box(Modifier.size(6.dp).clip(CircleShape).background(Palette.Live))
+            }
+            Txt(
+                line.detail, 11.sp,
+                if (line.live) Palette.Live else Palette.Muted,
+                weight = if (line.live) FontWeight.Bold else FontWeight.Normal,
+                align = TextAlign.End, maxLines = 1,
+            )
+        }
     }
 }
 
@@ -292,16 +315,16 @@ private fun HomePanel(
     ) {
         MarbleVeins(Modifier.fillMaxSize())
         Column(
-            Modifier.fillMaxSize().padding(15.dp),
-            verticalArrangement = Arrangement.spacedBy(11.dp),
+            Modifier.fillMaxSize().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Txt("Home", 24.sp, Palette.Chocolate, Modifier.weight(1f), family = AppFonts.serif)
+                Txt("Home", 24.sp, Palette.Ink, Modifier.weight(1f), family = AppFonts.serif)
                 Box(
                     Modifier.clip(RoundedCornerShape(50)).background(Palette.Chip)
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .padding(horizontal = 9.dp, vertical = 4.dp),
                 ) {
-                    Txt("Heating · Stage 2", 9.sp, Palette.Forest, weight = FontWeight.SemiBold)
+                    Txt("Heating · Stage 2", 10.sp, Palette.Accent, weight = FontWeight.SemiBold)
                 }
             }
 
@@ -311,8 +334,8 @@ private fun HomePanel(
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Txt("Front garden", 11.sp, Palette.OnDark, weight = FontWeight.SemiBold)
-                    Txt("Live camera view arrives in Stage 3", 8.5.sp, Palette.OnDarkMuted, align = TextAlign.Center)
+                    Txt("Front garden", 12.sp, Palette.OnNight, weight = FontWeight.SemiBold)
+                    Txt("Live camera view arrives in Stage 3", 10.sp, Palette.OnNightMuted, align = TextAlign.Center)
                 }
             }
 
@@ -327,7 +350,7 @@ private fun HomePanel(
 
             TvButton(
                 shape = Rounded9,
-                background = Palette.Chocolate,
+                background = Palette.TileBrown,
                 onClick = onHomeControls,
                 modifier = Modifier.fillMaxWidth().height(44.dp),
                 focusedScale = 1.03f,
@@ -337,9 +360,9 @@ private fun HomePanel(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp),
                 ) {
-                    LineIcon(IconKind.House, Palette.BrassLight, 14.dp)
-                    Txt("All home controls", 11.sp, Palette.OnDark, Modifier.weight(1f), weight = FontWeight.SemiBold)
-                    LineIcon(IconKind.Chevron, Palette.OnDark, 12.dp)
+                    LineIcon(IconKind.House, Palette.BrassLight, 15.dp)
+                    Txt("All home controls", 12.sp, Palette.OnTile, Modifier.weight(1f), weight = FontWeight.SemiBold)
+                    LineIcon(IconKind.Chevron, Palette.OnTile, 13.dp)
                 }
             }
         }
@@ -356,7 +379,7 @@ private fun SceneButton(
 ) {
     TvButton(
         shape = Rounded9,
-        background = if (primary) Palette.Forest else Palette.CreamLight.copy(alpha = 0.85f),
+        background = if (primary) Palette.TileGreen else Palette.ButtonFill.copy(alpha = 0.9f),
         idleBorder = if (primary) null else Palette.ButtonBorder,
         onClick = onClick,
         modifier = modifier.height(44.dp),
@@ -367,8 +390,8 @@ private fun SceneButton(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
-            LineIcon(icon, if (primary) Palette.BrassLight else Palette.Brass, 14.dp)
-            Txt(label, 11.sp, if (primary) Palette.OnDark else Palette.Chocolate, weight = FontWeight.SemiBold)
+            LineIcon(icon, if (primary) Palette.BrassLight else Palette.Brass, 15.dp)
+            Txt(label, 12.sp, if (primary) Palette.OnTile else Palette.Ink, weight = FontWeight.SemiBold)
         }
     }
 }

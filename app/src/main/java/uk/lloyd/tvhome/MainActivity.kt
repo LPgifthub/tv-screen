@@ -1,10 +1,14 @@
 package uk.lloyd.tvhome
 
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.text.InputType
+import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -13,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -29,10 +34,20 @@ class MainActivity : ComponentActivity() {
 
     private val screen = mutableStateOf(Screen.Home)
 
+    /** Goes up each time TV Home comes back on screen, so the app list refreshes. */
+    private val resumeTick = mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AppFonts.init(this)
-        setContent { App(screen) }
+        Palette.evening = shouldUseEvening(Prefs.paletteMode(this))
+        setContent { App(screen, resumeTick.intValue) }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        ServiceGuard.sync(this)
+        resumeTick.intValue++
     }
 
     /** Pressing Home while on another TV Home page goes back to the main screen. */
@@ -73,6 +88,37 @@ class MainActivity : ComponentActivity() {
             toast("Couldn't open that settings page")
         }
     }
+
+    /**
+     * Asks for the football-data.org key in a standard TV text box.
+     * Tip: the Google TV remote in the Google Home app on your phone can type or paste into it.
+     */
+    fun askFootballKey(onSaved: (String) -> Unit) {
+        val input = EditText(this).apply {
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            hint = "Paste or type your key"
+            setText(Prefs.footballKey(this@MainActivity))
+        }
+        val box = FrameLayout(this).apply {
+            val pad = (24 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, 0)
+            addView(input)
+        }
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Football scores key")
+            .setMessage("Get a free key at football-data.org (it's emailed to you), then enter it here.")
+            .setView(box)
+            .setPositiveButton("Save") { _, _ ->
+                val key = input.text.toString().trim()
+                Prefs.setFootballKey(this, key)
+                onSaved(key)
+                toast(if (key.isEmpty()) "Key removed" else "Key saved – scores load in a few seconds")
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+        input.requestFocus()
+    }
 }
 
 fun Context.toast(message: String) {
@@ -80,34 +126,61 @@ fun Context.toast(message: String) {
 }
 
 @Composable
-fun App(screenState: MutableState<Screen>) {
+fun App(screenState: MutableState<Screen>, resumeTick: Int) {
     val context = LocalContext.current
     val activity = context as? MainActivity
+    val scope = rememberCoroutineScope()
+    val screen = screenState.value
+
     var apps by remember { mutableStateOf<List<TvApp>>(emptyList()) }
     var weather by remember { mutableStateOf<Weather?>(null) }
     var latestBuild by remember { mutableStateOf<Int?>(null) }
-    val scope = rememberCoroutineScope()
-    val screen = screenState.value
+    var paletteMode by remember { mutableStateOf(Prefs.paletteMode(context)) }
+    var footballKey by remember { mutableStateOf(Prefs.footballKey(context)) }
+    var football by remember { mutableStateOf(FootballTracker.noKeyView()) }
     val updateReady = latestBuild?.let { it > Updater.installedBuild(context) } ?: false
 
-    // Check GitHub for a newer build at start-up, every 6 hours, and whenever Setup opens.
-    LaunchedEffect(screen == Screen.Setup) {
-        while (true) {
-            Updater.latestBuild()?.let { latestBuild = it }
-            delay(6 * 60 * 60 * 1000L)
-        }
-    }
-
-    // Reload the app list whenever we come back to a page (catches newly installed apps).
-    LaunchedEffect(screen) {
+    // App list: reload whenever a page changes or TV Home comes back on screen
+    // (picks up apps installed from the Play Store in the meantime).
+    LaunchedEffect(screen, resumeTick) {
         apps = withContext(Dispatchers.IO) { runCatching { Apps.load(context) }.getOrDefault(apps) }
     }
 
-    // Weather every 30 minutes.
+    // Weather: every 30 minutes; every 2 minutes until the first success (Wi-Fi can be slow after a restart).
     LaunchedEffect(Unit) {
         while (true) {
-            WeatherService.fetch()?.let { weather = it }
-            delay(30 * 60 * 1000L)
+            val w = WeatherService.fetch()
+            if (w != null) weather = w
+            delay(if (w != null) 30 * 60_000L else 2 * 60_000L)
+        }
+    }
+
+    // Updates: check at start-up, every 6 hours, and whenever Setup opens.
+    LaunchedEffect(screen == Screen.Setup) {
+        while (true) {
+            Updater.latestBuild()?.let { latestBuild = it }
+            delay(6 * 60 * 60_000L)
+        }
+    }
+
+    // Day or evening colours: checked every 30 seconds.
+    LaunchedEffect(paletteMode) {
+        while (true) {
+            Palette.evening = shouldUseEvening(paletteMode)
+            delay(30_000)
+        }
+    }
+
+    // Fixtures and live scores: every 10 minutes, every minute while a tracked match is on.
+    LaunchedEffect(footballKey) {
+        if (footballKey.isBlank()) {
+            football = FootballTracker.noKeyView()
+            return@LaunchedEffect
+        }
+        val tracker = FootballTracker(footballKey)
+        while (true) {
+            football = tracker.cycle()
+            delay(tracker.nextDelayMillis())
         }
     }
 
@@ -120,6 +193,7 @@ fun App(screenState: MutableState<Screen>) {
         Screen.Home -> HomeScreen(
             apps = apps,
             weather = weather,
+            football = football,
             updateReady = updateReady,
             onOpenApp = { name, app ->
                 if (app == null) {
@@ -138,6 +212,8 @@ fun App(screenState: MutableState<Screen>) {
         }
         Screen.Setup -> SetupScreen(
             latestBuild = latestBuild,
+            footballKeySet = footballKey.isNotBlank(),
+            paletteMode = paletteMode,
             onInstallUpdate = {
                 scope.launch {
                     context.toast("Downloading the newest TV Home…")
@@ -145,6 +221,13 @@ fun App(screenState: MutableState<Screen>) {
                         context.toast("Update didn't download – check the Wi-Fi and try again")
                     }
                 }
+            },
+            onEnterFootballKey = { activity?.askFootballKey { footballKey = it } },
+            onCyclePalette = {
+                val next = PaletteMode.entries[(paletteMode.ordinal + 1) % PaletteMode.entries.size]
+                paletteMode = next
+                Prefs.setPaletteMode(context, next)
+                Palette.evening = shouldUseEvening(next)
             },
             onOpenAccessibility = { activity?.openSettings(Settings.ACTION_ACCESSIBILITY_SETTINGS) },
             onOpenAndroidSettings = { activity?.openSettings(Settings.ACTION_SETTINGS) },
