@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="cream">#F2EBDD</color>
+    <color name="forest">#29443A</color>
+
+    <style name="Theme.TvHome" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/cream</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:statusBarColor">@color/cream</item>
+        <item name="android:navigationBarColor">@color/cream</item>
+    </style>
+</resources>

@@ -1,0 +1,48 @@
+name: Build TV Home
+
+# Runs on every change to the code (and can be run by hand from the Actions tab).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Download fonts (Instrument Serif and Manrope, both Open Font Licence)
+        run: |
+          mkdir -p app/src/main/assets/fonts
+          base=https://raw.githubusercontent.com/google/fonts/main/ofl
+          curl -fsSL -o app/src/main/assets/fonts/InstrumentSerif-Regular.ttf "$base/instrumentserif/InstrumentSerif-Regular.ttf" || echo "Serif font not found, using fallback"
+          curl -fsSL -o app/src/main/assets/fonts/InstrumentSerif-Italic.ttf "$base/instrumentserif/InstrumentSerif-Italic.ttf" || echo "Serif italic not found, using fallback"
+          curl -fsSL -o app/src/main/assets/fonts/Manrope.ttf "$base/manrope/Manrope%5Bwght%5D.ttf" || echo "Manrope not found, using fallback"
+          find app/src/main/assets/fonts -size 0 -delete
+          ls -la app/src/main/assets/fonts
+
+      - name: Build the app
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Publish to the download link
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk tv-home.apk
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest tv-home.apk \
+            --title "TV Home – build ${{ github.run_number }}" \
+            --notes "Install on the Streamer with the Downloader app using: https://github.com/${{ github.repository }}/releases/latest/download/tv-home.apk"
