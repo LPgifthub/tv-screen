@@ -292,8 +292,12 @@ private fun TeamRow(line: TeamLine, badgeIndex: Int) {
             }
             Txt(
                 line.detail, 11.sp,
-                if (line.live) Palette.Live else Palette.Muted,
-                weight = if (line.live) FontWeight.Bold else FontWeight.Normal,
+                when {
+                    line.live -> Palette.Live
+                    line.result -> Palette.Accent
+                    else -> Palette.Muted
+                },
+                weight = if (line.live || line.result) FontWeight.Bold else FontWeight.Normal,
                 align = TextAlign.End, maxLines = 1,
             )
         }

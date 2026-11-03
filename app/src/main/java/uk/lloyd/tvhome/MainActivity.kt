@@ -3,6 +3,7 @@ package uk.lloyd.tvhome
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -22,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -39,8 +41,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashGuard.install(this)
+        if (CrashGuard.shouldFallBack(this)) {
+            CrashGuard.clear(this)
+            if (CrashGuard.openGoogleHome(this)) {
+                toast("TV Home hit a problem, so Google's home screen is open for now. Press Home to try TV Home again.")
+                finish()
+                return
+            }
+        }
         AppFonts.init(this)
         Palette.evening = shouldUseEvening(Prefs.paletteMode(this))
+        // Match the window to the palette so there's no cream flash when opening in the evening.
+        window.setBackgroundDrawable(ColorDrawable(Palette.Bg.toArgb()))
         setContent { App(screen, resumeTick.intValue) }
     }
 

@@ -31,8 +31,14 @@ data class Fixture(
     val finished: Boolean get() = status == "FINISHED" || status == "AWARDED"
 }
 
-/** One row of the Next up card. */
-data class TeamLine(val label: String, val initials: String, val detail: String, val live: Boolean)
+/** One row of the Next up card. [result] marks a full-time score shown for a few hours after a match. */
+data class TeamLine(
+    val label: String,
+    val initials: String,
+    val detail: String,
+    val live: Boolean,
+    val result: Boolean = false,
+)
 
 /** What the Next up card shows. */
 data class FootballView(val lines: List<TeamLine>)
@@ -62,12 +68,6 @@ object FootballApi {
         val json = get("/competitions/$code/matches$query", key)
         val arr = json.optJSONArray("matches") ?: return emptyList()
         return (0 until arr.length()).mapNotNull { i -> parse(arr.optJSONObject(i), code) }
-    }
-
-    /** One match, for live updates. */
-    suspend fun match(id: Long, competition: String, key: String): Fixture? {
-        val json = get("/matches/$id", key)
-        return parse(json.optJSONObject("match") ?: json, competition)
     }
 
     private fun JSONObject.intOrNull(name: String): Int? =
@@ -154,20 +154,19 @@ class FootballTracker(private val key: String) {
             }
         }
 
-        // 2. Live updates for matches that are on now.
+        // 2. Live updates: one small request per competition that has a tracked match on now
+        //    (yesterday–today in UTC, so late kick-offs abroad are still covered).
         val now = Instant.now()
-        val tracked = teams.flatMap { t -> matchesFor(t) }.distinctBy { it.id }
-        val onNow = tracked.filter { inWindow(it, now) }
-        for (f in onNow) {
-            runCatching { FootballApi.match(f.id, f.competition, key) }.getOrNull()?.let { replace(it) }
+        val tracked = teams.flatMap { t -> matchesFor(t) } + fixtures["PL"].orEmpty()
+        val liveComps = tracked.filter { inWindow(it, now) }.map { it.competition }.toSet()
+        if (liveComps.isNotEmpty()) {
+            val today = LocalDate.now(ZoneId.of("UTC"))
+            val range = "?dateFrom=${today.minusDays(1)}&dateTo=$today"
+            for (code in liveComps) {
+                runCatching { FootballApi.competition(code, key, range) }.getOrNull()?.forEach { replace(it) }
+            }
         }
-        val plToday = fixtures["PL"].orEmpty().filter { inWindow(it, now) }
-        if (plToday.isNotEmpty()) {
-            val today = LocalDate.now(ZoneId.of("UTC")).toString()
-            runCatching { FootballApi.competition("PL", key, "?dateFrom=$today&dateTo=$today") }
-                .getOrNull()?.forEach { replace(it) }
-        }
-        activeWindow = onNow.isNotEmpty() || plToday.isNotEmpty()
+        activeWindow = liveComps.isNotEmpty()
 
         return view()
     }
@@ -175,7 +174,7 @@ class FootballTracker(private val key: String) {
     private fun inWindow(f: Fixture, now: Instant): Boolean =
         !f.finished &&
             now.isAfter(f.kickoff.minus(Duration.ofMinutes(10))) &&
-            now.isBefore(f.kickoff.plus(Duration.ofMinutes(150)))
+            now.isBefore(f.kickoff.plus(Duration.ofMinutes(180)))
 
     private fun replace(updated: Fixture) {
         val list = fixtures[updated.competition] ?: return
@@ -196,11 +195,15 @@ class FootballTracker(private val key: String) {
         val now = Instant.now()
         val lines = teams.map { t ->
             val mine = matchesFor(t)
-            val live = mine.firstOrNull { it.live }
+            // A "live" status more than 3 hours after kick-off is stale data, not a match still on.
+            val live = mine.firstOrNull { it.live && now.isBefore(it.kickoff.plus(Duration.ofHours(3))) }
+            val recent = mine.filter { it.finished && now.isBefore(it.kickoff.plus(Duration.ofHours(5))) }
+                .maxByOrNull { it.kickoff }
             val next = mine.filter { it.upcoming && it.kickoff.isAfter(now.minus(Duration.ofHours(3))) }
                 .minByOrNull { it.kickoff }
             when {
                 live != null -> TeamLine(t.label, t.initials, liveDetail(live, t.nameKey), true)
+                recent != null -> TeamLine(t.label, t.initials, resultDetail(recent, t.nameKey), false, result = true)
                 next != null -> TeamLine(t.label, t.initials, nextDetail(next, t.nameKey), false)
                 t.label == "England" -> TeamLine(t.label, t.initials, "Between tournaments", false)
                 else -> TeamLine(t.label, t.initials, "No fixtures listed", false)
@@ -211,7 +214,7 @@ class FootballTracker(private val key: String) {
 
     private fun premierLeagueLine(now: Instant): TeamLine {
         val pl = fixtures["PL"].orEmpty()
-        val liveCount = pl.count { it.live }
+        val liveCount = pl.count { it.live && now.isBefore(it.kickoff.plus(Duration.ofHours(3))) }
         if (liveCount > 0) {
             return TeamLine("Prem", "PL", if (liveCount == 1) "1 game live" else "$liveCount games live", true)
         }
@@ -231,6 +234,19 @@ class FootballTracker(private val key: String) {
             else -> "live"
         }
         return "$ours–$theirs v $opponent · $clock"
+    }
+
+    private fun resultDetail(f: Fixture, nameKey: String): String {
+        val isHome = f.homeFull.contains(nameKey, ignoreCase = true)
+        val ours = (if (isHome) f.homeScore else f.awayScore) ?: 0
+        val theirs = (if (isHome) f.awayScore else f.homeScore) ?: 0
+        val opponent = if (isHome) f.away else f.home
+        val outcome = when {
+            ours > theirs -> "Won"
+            ours < theirs -> "Lost"
+            else -> "Drew"
+        }
+        return "$outcome $ours–$theirs v $opponent"
     }
 
     private fun nextDetail(f: Fixture, nameKey: String): String {
