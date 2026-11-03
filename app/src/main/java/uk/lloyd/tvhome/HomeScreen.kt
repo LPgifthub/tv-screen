@@ -52,6 +52,7 @@ private val Rounded9 = RoundedCornerShape(9.dp)
 fun HomeScreen(
     apps: List<TvApp>,
     weather: Weather?,
+    updateReady: Boolean,
     onOpenApp: (name: String, app: TvApp?) -> Unit,
     onAllApps: () -> Unit,
     onSetup: () -> Unit,
@@ -79,7 +80,16 @@ fun HomeScreen(
                     Modifier.weight(1f).fillMaxHeight(),
                     verticalArrangement = Arrangement.spacedBy(9.dp),
                 ) {
-                    SectionLabel("WATCH")
+                    // Label and the two small buttons share one line, leaving room for the cards below.
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(Modifier.weight(1f)) { SectionLabel("WATCH") }
+                        PillButton("All apps", onAllApps)
+                        PillButton(if (updateReady) "Setup · update ready" else "Setup", onSetup)
+                    }
                     val favourites = Apps.favourites(apps)
                     favourites.chunked(3).forEachIndexed { rowIndex, row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(15.dp)) {
@@ -97,14 +107,7 @@ fun HomeScreen(
                         }
                     }
                     Row(
-                        Modifier.padding(top = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        PillButton("All apps", onAllApps)
-                        PillButton("Setup", onSetup)
-                    }
-                    Row(
-                        Modifier.fillMaxWidth().weight(1f),
+                        Modifier.fillMaxWidth().weight(1f).padding(top = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(15.dp),
                     ) {
                         InfoCard("Today", Modifier.weight(1f).fillMaxHeight()) {
@@ -157,7 +160,7 @@ private fun Header(weather: Weather?) {
                     append("Good ")
                     withStyle(SpanStyle(fontStyle = FontStyle.Italic, color = Palette.Forest)) { append(part) }
                 },
-                TextStyle(fontFamily = AppFonts.serif, fontSize = 44.sp, color = Palette.Chocolate),
+                TextStyle(fontFamily = AppFonts.serif, fontSize = 40.sp, color = Palette.Chocolate),
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
@@ -170,13 +173,20 @@ private fun Header(weather: Weather?) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
-                LineIcon(IconKind.Cloud, Palette.Forest, 22.dp)
+                LineIcon(weather?.icon ?: IconKind.Cloud, Palette.Forest, 22.dp)
                 Column {
                     Txt(weather?.let { "${it.tempC}°" } ?: "–°", 15.sp, Palette.Chocolate, weight = FontWeight.SemiBold)
                     Txt("Horsford · ${weather?.summary ?: "updating"}", 8.5.sp, Palette.Muted)
+                    val detail = weather?.let { w ->
+                        listOfNotNull(
+                            if (w.highC != null && w.lowC != null) "${w.highC}° / ${w.lowC}°" else null,
+                            w.rainChance?.let { "$it% rain" },
+                        ).joinToString(" · ")
+                    }
+                    if (!detail.isNullOrEmpty()) Txt(detail, 8.5.sp, Palette.Muted)
                 }
             }
-            Txt(time, 60.sp, Palette.Forest, family = AppFonts.serif)
+            Txt(time, 54.sp, Palette.Forest, family = AppFonts.serif)
         }
     }
 }

@@ -1,8 +1,8 @@
 package uk.lloyd.tvhome
 
-import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
@@ -15,10 +15,12 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 enum class Screen { Home, AllApps, Setup }
@@ -45,10 +47,21 @@ class MainActivity : ComponentActivity() {
      */
     fun openHomeControls() {
         Prefs.setGrace(this, 20_000)
-        val opened = HomeButtonService.instance
-            ?.performGlobalAction(AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS) ?: false
+        val opened = HomeButtonService.instance?.openSidePanel() ?: false
         if (!opened) {
             toast("Open the Google Home panel from your remote's dashboard for now – this button is finished in Stage 2")
+        }
+    }
+
+    /** For a main button whose app isn't installed: open its Play Store search. */
+    fun openPlayStore(appName: String) {
+        try {
+            startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=" + Uri.encode(appName) + "&c=apps"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        } catch (e: Exception) {
+            toast("$appName isn't installed – get it from the Play Store")
         }
     }
 
@@ -72,7 +85,18 @@ fun App(screenState: MutableState<Screen>) {
     val activity = context as? MainActivity
     var apps by remember { mutableStateOf<List<TvApp>>(emptyList()) }
     var weather by remember { mutableStateOf<Weather?>(null) }
+    var latestBuild by remember { mutableStateOf<Int?>(null) }
+    val scope = rememberCoroutineScope()
     val screen = screenState.value
+    val updateReady = latestBuild?.let { it > Updater.installedBuild(context) } ?: false
+
+    // Check GitHub for a newer build at start-up, every 6 hours, and whenever Setup opens.
+    LaunchedEffect(screen == Screen.Setup) {
+        while (true) {
+            Updater.latestBuild()?.let { latestBuild = it }
+            delay(6 * 60 * 60 * 1000L)
+        }
+    }
 
     // Reload the app list whenever we come back to a page (catches newly installed apps).
     LaunchedEffect(screen) {
@@ -96,9 +120,12 @@ fun App(screenState: MutableState<Screen>) {
         Screen.Home -> HomeScreen(
             apps = apps,
             weather = weather,
+            updateReady = updateReady,
             onOpenApp = { name, app ->
-                if (app == null || !Apps.launch(context, app)) {
-                    context.toast("$name isn't installed – get it from the Play Store")
+                if (app == null) {
+                    activity?.openPlayStore(name)
+                } else if (!Apps.launch(context, app)) {
+                    context.toast("Couldn't open $name")
                 }
             },
             onAllApps = { screenState.value = Screen.AllApps },
@@ -110,6 +137,15 @@ fun App(screenState: MutableState<Screen>) {
             if (!Apps.launch(context, app)) context.toast("Couldn't open ${app.label}")
         }
         Screen.Setup -> SetupScreen(
+            latestBuild = latestBuild,
+            onInstallUpdate = {
+                scope.launch {
+                    context.toast("Downloading the newest TV Home…")
+                    if (!Updater.downloadAndInstall(context)) {
+                        context.toast("Update didn't download – check the Wi-Fi and try again")
+                    }
+                }
+            },
             onOpenAccessibility = { activity?.openSettings(Settings.ACTION_ACCESSIBILITY_SETTINGS) },
             onOpenAndroidSettings = { activity?.openSettings(Settings.ACTION_SETTINGS) },
             onTestHomePanel = { activity?.openHomeControls() },

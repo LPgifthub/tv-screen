@@ -127,7 +127,7 @@ fun TvButton(
     }
 }
 
-enum class IconKind { Film, Flame, Sunrise, Power, House, Chevron, Cloud }
+enum class IconKind { Film, Flame, Sunrise, Power, House, Chevron, Cloud, Sun, Rain }
 
 /** Simple line icons drawn in code, so there are no image files to manage. */
 @Composable
@@ -180,6 +180,32 @@ fun LineIcon(kind: IconKind, color: Color, size: Dp = 14.dp) {
             }
             IconKind.Chevron -> line {
                 moveTo(9 * s, 6 * s); lineTo(15 * s, 12 * s); lineTo(9 * s, 18 * s)
+            }
+            IconKind.Sun -> {
+                drawCircle(color, radius = 4.5f * s, center = Offset(12 * s, 12 * s), style = stroke)
+                line { moveTo(12 * s, 2.5f * s); lineTo(12 * s, 4.5f * s) }
+                line { moveTo(12 * s, 19.5f * s); lineTo(12 * s, 21.5f * s) }
+                line { moveTo(2.5f * s, 12 * s); lineTo(4.5f * s, 12 * s) }
+                line { moveTo(19.5f * s, 12 * s); lineTo(21.5f * s, 12 * s) }
+                line { moveTo(5.3f * s, 5.3f * s); lineTo(6.7f * s, 6.7f * s) }
+                line { moveTo(17.3f * s, 17.3f * s); lineTo(18.7f * s, 18.7f * s) }
+                line { moveTo(18.7f * s, 5.3f * s); lineTo(17.3f * s, 6.7f * s) }
+                line { moveTo(6.7f * s, 17.3f * s); lineTo(5.3f * s, 18.7f * s) }
+            }
+            IconKind.Rain -> {
+                line {
+                    moveTo(7 * s, 15 * s)
+                    cubicTo(4.5f * s, 15 * s, 3.5f * s, 13 * s, 3.5f * s, 11.5f * s)
+                    cubicTo(3.5f * s, 9.5f * s, 5 * s, 8 * s, 7 * s, 8 * s)
+                    cubicTo(7.8f * s, 5.5f * s, 9.8f * s, 4 * s, 12.2f * s, 4 * s)
+                    cubicTo(15.2f * s, 4 * s, 17.4f * s, 6.2f * s, 17.6f * s, 9 * s)
+                    cubicTo(19.4f * s, 9.2f * s, 20.5f * s, 10.5f * s, 20.5f * s, 12 * s)
+                    cubicTo(20.5f * s, 13.7f * s, 19.2f * s, 15 * s, 17.5f * s, 15 * s)
+                    close()
+                }
+                line { moveTo(8 * s, 18 * s); lineTo(7 * s, 21 * s) }
+                line { moveTo(12.5f * s, 18 * s); lineTo(11.5f * s, 21 * s) }
+                line { moveTo(17 * s, 18 * s); lineTo(16 * s, 21 * s) }
             }
             IconKind.Cloud -> {
                 line { moveTo(12 * s, 2.5f * s); lineTo(12 * s, 4.5f * s) }

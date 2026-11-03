@@ -6,11 +6,14 @@ import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 
 /**
- * Home button takeover, method 1.
+ * Home button takeover, backup method.
  *
- * Google's own home screen stays installed (so the Google Home features keep working);
- * this service simply brings TV Home to the front whenever the Home button is pressed
- * or Google's home screen appears. It never reads what is on screen.
+ * The preferred method is making TV Home the default home app (one command, see Setup),
+ * which needs no running service. This service is the fallback: it brings TV Home to the
+ * front when the Home button is pressed, or when Google's own home screen appears.
+ * It never reads what is on screen.
+ *
+ * Short press Home = TV Home. Long press Home = the system side panel (Google Home panel).
  */
 class HomeButtonService : AccessibilityService() {
 
@@ -19,15 +22,16 @@ class HomeButtonService : AccessibilityService() {
         var instance: HomeButtonService? = null
             private set
 
-        val STOCK_LAUNCHERS = setOf(
-            "com.google.android.apps.tv.launcherx", // Google TV home screen
-            "com.google.android.tvlauncher",        // older Android TV home screen
-        )
+        private const val LONG_PRESS_MS = 600L
     }
+
+    /** Google's own home screens, as "package/ActivityClass", read from the TV itself. */
+    private var stockHomeScreens: Set<String> = emptySet()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        stockHomeScreens = findStockHomeScreens()
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -44,7 +48,8 @@ class HomeButtonService : AccessibilityService() {
         if (event.keyCode != KeyEvent.KEYCODE_HOME) return false
         if (event.action == KeyEvent.ACTION_UP) {
             Prefs.markHomeKey(this)
-            openTvHome()
+            val held = event.eventTime - event.downTime
+            if (held >= LONG_PRESS_MS) openSidePanel() else openTvHome()
         }
         return true
     }
@@ -54,14 +59,15 @@ class HomeButtonService : AccessibilityService() {
         val pkg = event.packageName?.toString() ?: return
         if (pkg == packageName) return
         val cls = event.className?.toString().orEmpty()
-        Prefs.setLastWindow(this, "$pkg / $cls")
+        val key = "$pkg/$cls"
+        Prefs.setLastWindow(this, key)
 
-        if (pkg !in STOCK_LAUNCHERS) return
+        if (stockHomeScreens.isEmpty()) stockHomeScreens = findStockHomeScreens()
+        // Only Google's actual home screen, never its search results, panels or other pages.
+        if (key !in stockHomeScreens) return
         if (!Prefs.watchScreens(this)) return
-        // Just opened Google's Home panel on purpose: leave it alone for a moment.
+        // Just opened something of Google's on purpose: leave it alone for a moment.
         if (System.currentTimeMillis() < Prefs.graceUntil(this)) return
-        // Only full screens, not side panels or pop-ups.
-        if (!cls.endsWith("Activity")) return
         openTvHome()
     }
 
@@ -75,4 +81,20 @@ class HomeButtonService : AccessibilityService() {
         )
         startActivity(intent)
     }
+
+    /** Opens the system side panel, where the Google Home panel lives. Returns false if refused. */
+    fun openSidePanel(): Boolean {
+        Prefs.setGrace(this, 20_000)
+        return performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
+    }
+
+    private fun findStockHomeScreens(): Set<String> =
+        runCatching {
+            packageManager
+                .queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)
+                .map { it.activityInfo }
+                .filter { it.packageName != packageName }
+                .map { "${it.packageName}/${it.name}" }
+                .toSet()
+        }.getOrDefault(emptySet())
 }
