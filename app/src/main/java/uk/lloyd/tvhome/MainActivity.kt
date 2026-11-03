@@ -25,6 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -62,6 +63,9 @@ class MainActivity : ComponentActivity() {
         ServiceGuard.sync(this)
         resumeTick.intValue++
     }
+
+    /** True while TV Home is the screen being shown (not behind another app). */
+    fun isOnScreen(): Boolean = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
 
     /** Pressing Home while on another TV Home page goes back to the main screen. */
     override fun onNewIntent(intent: Intent) {
@@ -168,11 +172,33 @@ fun App(screenState: MutableState<Screen>, resumeTick: Int) {
         }
     }
 
+    // First launch: open the Setup checklist straight away.
+    LaunchedEffect(Unit) {
+        if (!Prefs.firstRunDone(context)) {
+            Prefs.setFirstRunDone(context)
+            screenState.value = Screen.Setup
+        }
+    }
+
     // Updates: check at start-up, every 6 hours, and whenever Setup opens.
     LaunchedEffect(screen == Screen.Setup) {
         while (true) {
             Updater.latestBuild()?.let { latestBuild = it }
             delay(6 * 60 * 60_000L)
+        }
+    }
+
+    // Automatic updates: only while TV Home itself is on screen (never over a programme),
+    // and only once Android lets TV Home update itself without asking.
+    var autoTried by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(latestBuild, resumeTick) {
+        val newest = latestBuild ?: return@LaunchedEffect
+        if (newest <= Updater.installedBuild(context) || autoTried == newest) return@LaunchedEffect
+        if (!Prefs.autoUpdate(context) || !Updater.canUpdateSilently(context)) return@LaunchedEffect
+        delay(5_000)
+        if (activity?.isOnScreen() == true) {
+            autoTried = newest
+            Updater.downloadAndInstall(context)
         }
     }
 
@@ -208,6 +234,7 @@ fun App(screenState: MutableState<Screen>, resumeTick: Int) {
             weather = weather,
             football = football,
             updateReady = updateReady,
+            setupNeeded = !homeButtonReady(context),
             onOpenApp = { name, app ->
                 if (app == null) {
                     activity?.openPlayStore(name)
@@ -243,7 +270,6 @@ fun App(screenState: MutableState<Screen>, resumeTick: Int) {
                 Palette.evening = shouldUseEvening(next)
             },
             onOpenAccessibility = { activity?.openSettings(Settings.ACTION_ACCESSIBILITY_SETTINGS) },
-            onOpenAndroidSettings = { activity?.openSettings(Settings.ACTION_SETTINGS) },
             onTestHomePanel = { activity?.openHomeControls() },
             onBack = { screenState.value = Screen.Home },
         )

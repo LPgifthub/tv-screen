@@ -54,6 +54,7 @@ fun HomeScreen(
     weather: Weather?,
     football: FootballView,
     updateReady: Boolean,
+    setupNeeded: Boolean,
     onOpenApp: (name: String, app: TvApp?) -> Unit,
     onAllApps: () -> Unit,
     onSetup: () -> Unit,
@@ -89,7 +90,14 @@ fun HomeScreen(
                     ) {
                         Box(Modifier.weight(1f)) { SectionLabel("WATCH") }
                         PillButton("All apps", onAllApps)
-                        PillButton(if (updateReady) "Setup · update ready" else "Setup", onSetup)
+                        PillButton(
+                            when {
+                                setupNeeded -> "Finish setup"
+                                updateReady -> "Setup · update ready"
+                                else -> "Setup"
+                            },
+                            onSetup,
+                        )
                     }
 
                     val favourites = Apps.favourites(apps)

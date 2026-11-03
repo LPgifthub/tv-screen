@@ -43,6 +43,18 @@ object Prefs {
         sp(c).edit().putString("palette", mode.name).apply()
     }
 
+    /** Setup opens by itself the very first time TV Home runs. */
+    fun firstRunDone(c: Context): Boolean = sp(c).getBoolean("firstRunDone", false)
+    fun setFirstRunDone(c: Context) {
+        sp(c).edit().putBoolean("firstRunDone", true).apply()
+    }
+
+    /** Install new builds automatically while TV Home is on screen. */
+    fun autoUpdate(c: Context): Boolean = sp(c).getBoolean("autoUpdate", true)
+    fun setAutoUpdate(c: Context, on: Boolean) {
+        sp(c).edit().putBoolean("autoUpdate", on).apply()
+    }
+
     /** Free football-data.org key, typed in once on the Setup page. */
     fun footballKey(c: Context): String = sp(c).getString("footballKey", null).orEmpty()
     fun setFootballKey(c: Context, key: String) {

@@ -9,8 +9,9 @@
     <uses-permission
         android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
-    <!-- Lets TV Home install its own updates (Android still asks you to confirm each one). -->
+    <!-- Lets TV Home install its own updates. The first asks you to confirm; later ones are silent. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -60,7 +61,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Home button takeover (method 1). Switched on in the TV's Accessibility settings. -->
+        <!-- Backup Home button method. Switched on by the setup command or in Accessibility settings. -->
         <service
             android:name=".HomeButtonService"
             android:exported="false"
@@ -83,15 +84,9 @@
             </intent-filter>
         </receiver>
 
-        <!-- Hands downloaded updates to Android's installer. -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.files"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
+        <!-- Hears back from Android's installer after an update. -->
+        <receiver
+            android:name=".InstallResultReceiver"
+            android:exported="false" />
     </application>
 </manifest>
